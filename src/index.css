@@ -1,0 +1,205 @@
+@import "tailwindcss";
+
+/* ============================================================
+   NEOBRUTALIST DESIGN SYSTEM — edit the tokens, everything follows
+   ============================================================ */
+@theme {
+  --color-ink: #111111;
+  --color-paper: #fff8e7;
+  --color-primary: #ffd93d;   /* yellow */
+  --color-secondary: #ff7ab6; /* pink   */
+  --color-accent: #7dd3fc;    /* sky    */
+  --font-sans: "Space Grotesk", "Inter", system-ui, sans-serif;
+  --font-mono: "Space Mono", ui-monospace, monospace;
+}
+
+:root {
+  --ink: #111111;
+  --paper: #fff8e7;
+  --primary: #ffd93d;
+  --secondary: #ff7ab6;
+  --accent: #7dd3fc;
+  --bw: 3px;                          /* border width */
+  --shadow: 6px 6px 0 var(--ink);     /* hard offset shadow */
+  --shadow-sm: 3px 3px 0 var(--ink);
+}
+
+/* ---------- BASE: styles raw elements so *everything* is on-brand ---------- */
+@layer base {
+  html { scroll-behavior: smooth; }
+
+  body {
+    margin: 0;
+    background-color: var(--paper);
+    /* subtle dot grid */
+    background-image: radial-gradient(var(--ink) 1px, transparent 1px);
+    background-size: 22px 22px;
+    background-attachment: fixed;
+    color: var(--ink);
+    font-family: "Space Grotesk", "Inter", system-ui, sans-serif;
+    font-weight: 500;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3, h4 {
+    font-weight: 800;
+    line-height: 1.02;
+    letter-spacing: -0.03em;
+    text-transform: uppercase;
+  }
+
+  a { color: inherit; text-decoration: none; }
+  p a, li a { text-decoration: underline; text-decoration-thickness: 3px; text-underline-offset: 3px; }
+
+  ::selection { background: var(--ink); color: var(--primary); }
+
+  :focus-visible { outline: 4px solid var(--ink); outline-offset: 3px; }
+
+  hr { border: 0; border-top: var(--bw) solid var(--ink); }
+
+  code, pre, kbd {
+    font-family: "Space Mono", ui-monospace, monospace;
+    background: var(--paper);
+    border: 2px solid var(--ink);
+    padding: 0.1em 0.4em;
+  }
+  pre { padding: 1rem; box-shadow: var(--shadow-sm); overflow-x: auto; }
+
+  table { border-collapse: collapse; width: 100%; border: var(--bw) solid var(--ink); }
+  th, td { border: 2px solid var(--ink); padding: 0.5rem 0.75rem; text-align: left; }
+  th { background: var(--primary); text-transform: uppercase; }
+
+  details { border: var(--bw) solid var(--ink); background: #fff; padding: 0.75rem; box-shadow: var(--shadow-sm); }
+
+  ::-webkit-scrollbar { width: 14px; height: 14px; }
+  ::-webkit-scrollbar-track { background: var(--paper); border-left: var(--bw) solid var(--ink); }
+  ::-webkit-scrollbar-thumb { background: var(--secondary); border: var(--bw) solid var(--ink); }
+}
+
+/* ---------- COMPONENTS ---------- */
+@layer components {
+  /* Card / panel */
+  .nb-box {
+    background: #fff;
+    border: var(--bw) solid var(--ink);
+    border-radius: 0;
+    box-shadow: var(--shadow);
+  }
+
+  /* Buttons */
+  .nb-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.7rem 1.2rem;
+    background: #fff;
+    color: var(--ink);
+    border: var(--bw) solid var(--ink);
+    border-radius: 0;
+    box-shadow: var(--shadow-sm);
+    font: inherit;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition: transform 0.08s ease, box-shadow 0.08s ease;
+  }
+  .nb-btn:hover { transform: translate(-2px, -2px); box-shadow: 5px 5px 0 var(--ink); }
+  .nb-btn:active { transform: translate(3px, 3px); box-shadow: 0 0 0 var(--ink); }
+  .nb-btn:disabled, .nb-chip:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: var(--shadow-sm);
+    background-image: repeating-linear-gradient(45deg, transparent 0 6px, rgba(0,0,0,.08) 6px 12px);
+  }
+  .nb-btn-primary { background: var(--primary); }
+  .nb-btn-secondary { background: var(--secondary); }
+  .nb-btn-ink { background: var(--ink); color: var(--paper); }
+
+  /* Text input */
+  .nb-input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    background: #fff;
+    color: var(--ink);
+    border: var(--bw) solid var(--ink);
+    border-radius: 0;
+    box-shadow: var(--shadow-sm);
+    font: inherit;
+    font-weight: 600;
+    transition: box-shadow 0.08s ease, transform 0.08s ease;
+  }
+  .nb-input::placeholder { color: rgba(17, 17, 17, 0.55); font-weight: 500; }
+  .nb-input:focus {
+    outline: none;
+    background: #fffdf2;
+    transform: translate(-2px, -2px);
+    box-shadow: 5px 5px 0 var(--ink);
+  }
+
+  /* Quick-prompt chip */
+  .nb-chip {
+    padding: 0.3rem 0.8rem;
+    background: var(--paper);
+    color: var(--ink);
+    border: 2px solid var(--ink);
+    border-radius: 999px;
+    box-shadow: 2px 2px 0 var(--ink);
+    font: inherit;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.08s ease, box-shadow 0.08s ease, background 0.08s;
+  }
+  .nb-chip:hover { background: var(--primary); transform: translate(-1px, -1px); box-shadow: 3px 3px 0 var(--ink); }
+  .nb-chip:active { transform: translate(2px, 2px); box-shadow: 0 0 0 var(--ink); }
+
+  /* Sticker tag */
+  .nb-tag {
+    display: inline-block;
+    padding: 0.2rem 0.7rem;
+    background: var(--accent);
+    border: 2px solid var(--ink);
+    box-shadow: 2px 2px 0 var(--ink);
+    font-family: "Space Mono", ui-monospace, monospace;
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    transform: rotate(-2deg);
+  }
+
+  .font-mono-nb { font-family: "Space Mono", ui-monospace, monospace; }
+
+  /* dark bars keep readable text */
+  .bg-ink { color: var(--paper); }
+
+  /* blinking cursor in the loading card */
+  .nb-cursor { animation: nb-blink 1s steps(1) infinite; }
+}
+
+/* ---------- MASCOT ANIMATIONS (hooks into Character.jsx classes) ---------- */
+.nb-character { display: inline-block; flex-shrink: 0; }
+.nb-character img, .nb-character svg {
+  display: block;
+  filter: drop-shadow(4px 4px 0 var(--ink));
+}
+.nb-character-idle .nb-char-body { animation: nb-bob 2.4s ease-in-out infinite; }
+.nb-character-thinking .nb-char-body { animation: nb-wobble 0.9s ease-in-out infinite; }
+.nb-character-happy .nb-char-body { animation: nb-jump 0.5s ease-out 3; }
+.nb-character-sad .nb-char-body { animation: nb-shake 0.4s ease-in-out 2; transform-origin: bottom center; }
+
+.nb-dot { animation: nb-blink 1.2s infinite; }
+.nb-dot-2 { animation-delay: 0.2s; }
+.nb-dot-3 { animation-delay: 0.4s; }
+
+@keyframes nb-blink { 50% { opacity: 0; } }
+@keyframes nb-bob { 50% { transform: translateY(-6px); } }
+@keyframes nb-wobble { 25% { transform: rotate(-6deg); } 75% { transform: rotate(6deg); } }
+@keyframes nb-jump { 40% { transform: translateY(-16px) scale(1.05); } }
+@keyframes nb-shake { 25% { transform: translateX(-5px) rotate(-3deg); } 75% { transform: translateX(5px) rotate(3deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
