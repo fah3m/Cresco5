@@ -20,7 +20,7 @@ const CONFIG = {
 };
 
 
-const GROQ_API_KEY = import.meta.env.GROQ_API_KEY;
+const GROQ_API_KEY = "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";
 const GROQ_MODELS = ["openai/gpt-oss-20b", "openai/gpt-oss-120b"];
 
 const INDIAN_STOCK_API_KEY = "sk-live-DPNFi4VVOo0VEKFwOcFfUOTPjoWYLprQY7aA5KCP";
