@@ -1,42 +1,30 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 
-/* ============================================================
-   CHANGE ONLY THIS BLOCK WHEN THE TOPIC IS ANNOUNCED
-   ============================================================ */
 const CONFIG = {
-  appName: "HACKBOX",
-  headline: "Ask anything. Get answers instantly.",
-  subline: "An AI tool built in under two hours.",
+  appName: "Stonks",
+  headline: "Explore ways to understand stocks like never before",
+  subline: ".",
   placeholder: "Type here and hit Enter...",
-  buttonLabel: "Generate",
-  quickPrompts: ["Give me 3 ideas", "Explain it simply", "Make a plan", "Surprise me"],
-  nav: ["Home", "Features", "About"],
+  buttonLabel: "ask AI",
+  quickPrompts: [],
+  nav: ["Home", "AI Analysis", "Portfolio"],
 
-  // Who the AI is / what it does for this topic
-  systemPrompt: "You are a helpful assistant. Keep answers concise and useful.",
+  systemPrompt: "You are a master stock analyst. Keep answers concise and useful. Give analytical insights in points if needed. Do not ask the user to take outside help",
 
-  // true  -> AI must reply with JSON, page renders it as cards (best for lists, plans, quizzes, recipes...)
-  // false -> AI replies in plain text
   jsonMode: true,
-  // Describe the JSON shape you want (only used when jsonMode = true). Examples:
-  //   '{ "title": string, "summary": string, "steps": string[] }'
-  //   '[ { "name": string, "description": string } ]'
-  schemaHint: '{ "title": string, "summary": string, "points": string[] }',
+  schemaHint: '{ "title": string, "brief": string, "points": string[] }',
 };
 
-/* ============================================================
-   GROQ CONFIG
-   ------------------------------------------------------------
-   Paste your (new, rotated) key below. Never commit this file with
-   a real key, screen-share this block, or publish it publicly.
-   ============================================================ */
+// ⚠️ Both keys below are hardcoded so this ships fast for the hackathon demo.
+// They are visible to anyone who opens dev tools / view-source on the deployed
+// site, so don't reuse these keys anywhere real after the event — rotate them
+// and move to a backend proxy or .env + server-side call for production.
 const GROQ_API_KEY = "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";
 const GROQ_MODELS = ["openai/gpt-oss-20b", "openai/gpt-oss-120b"];
 
-/* ============================================================
-   AI FUNCTION
-   Never throws. Returns { ok: true, data } or { ok: false, error }.
-   ============================================================ */
+const INDIAN_STOCK_API_KEY = "sk-live-DPNFi4VVOo0VEKFwOcFfUOTPjoWYLprQY7aA5KCP";
+const INDIAN_STOCK_API_BASE = "https://stock.indianapi.in";
+
 async function askAI(promptText) {
   if (!GROQ_API_KEY) {
     return { ok: false, error: "Groq API key not set. Edit GROQ_API_KEY in the config block." };
@@ -59,7 +47,6 @@ async function askAI(promptText) {
       });
       const data = await res.json();
 
-      // Errors (bad key, bad model, rate limit) have an "error" field and no "choices"
       if (!res.ok) {
         error = data?.error?.message || `Request failed (${res.status})`;
         console.error(`Groq error [${model}]:`, error);
@@ -72,10 +59,8 @@ async function askAI(promptText) {
         continue;
       }
 
-      // Strip markdown code fences if the model adds them
       const cleaned = raw.replace(/```json|```/g, "").trim();
 
-      // Try to parse as JSON; fall back to raw text if it's not JSON
       try {
         return { ok: true, data: JSON.parse(cleaned) };
       } catch {
@@ -97,8 +82,368 @@ function buildPrompt(userText) {
 }
 
 /* ============================================================
-   UNIVERSAL RENDERER — shows string / array / object / nested JSON
+   Indian stock market data (indianapi.in)
    ============================================================ */
+
+// The API's field names vary a bit between endpoints, so this normalizes
+// whatever shape comes back (trending list OR single /stock lookup) into
+// something the UI can always rely on. Ticker/scrip codes are intentionally
+// dropped from what's shown — only the plain company name is displayed.
+function normalizeStock(raw) {
+  const priceRaw =
+    raw.price ??
+    raw.last_price ??
+    raw.close_price ??
+    raw.ltp ??
+    raw.currentPrice?.NSE ??
+    raw.currentPrice?.BSE;
+  const changeRaw =
+    raw.percent_change ??
+    raw.net_change ??
+    raw.change ??
+    raw.change_percent ??
+    raw.percentChange;
+  const price = priceRaw !== undefined && priceRaw !== null ? Number(priceRaw) : null;
+  const change = changeRaw !== undefined && changeRaw !== null ? Number(changeRaw) : null;
+
+  return {
+    name:
+      raw.company_name ||
+      raw.companyName ||
+      raw.name ||
+      raw.ticker_id ||
+      raw.symbol ||
+      "Unknown",
+    price,
+    change: Number.isNaN(change) ? null : change,
+  };
+}
+
+async function fetchTrendingStocks() {
+  if (!INDIAN_STOCK_API_KEY) {
+    return { ok: false, error: "IndianAPI key not set. Edit INDIAN_STOCK_API_KEY in the config block." };
+  }
+
+  try {
+    const res = await fetch(`${INDIAN_STOCK_API_BASE}/trending`, {
+      headers: { "X-Api-Key": INDIAN_STOCK_API_KEY },
+    });
+
+    if (!res.ok) {
+      let detail = `Request failed (${res.status})`;
+      try {
+        const errBody = await res.json();
+        detail = errBody?.message || errBody?.error || detail;
+      } catch {
+        /* ignore parse failure, keep default detail */
+      }
+      return { ok: false, error: detail };
+    }
+
+    const data = await res.json();
+    const gainersRaw = data?.trending_stocks?.top_gainers || data?.top_gainers || [];
+    const losersRaw = data?.trending_stocks?.top_losers || data?.top_losers || [];
+
+    return {
+      ok: true,
+      gainers: gainersRaw.map(normalizeStock),
+      losers: losersRaw.map(normalizeStock),
+    };
+  } catch (err) {
+    console.error("Stock fetch failed:", err); // often CORS / network in-browser
+    return { ok: false, error: "Could not reach the stock API. Check your connection and try again." };
+  }
+}
+
+async function fetchStockByName(name) {
+  if (!INDIAN_STOCK_API_KEY) {
+    return { ok: false, error: "IndianAPI key not set. Edit INDIAN_STOCK_API_KEY in the config block." };
+  }
+
+  try {
+    const res = await fetch(`${INDIAN_STOCK_API_BASE}/stock?name=${encodeURIComponent(name)}`, {
+      headers: { "X-Api-Key": INDIAN_STOCK_API_KEY },
+    });
+
+    if (!res.ok) {
+      let detail = `Request failed (${res.status})`;
+      try {
+        const errBody = await res.json();
+        detail = errBody?.message || errBody?.error || detail;
+      } catch {
+        /* ignore parse failure, keep default detail */
+      }
+      return { ok: false, error: detail };
+    }
+
+    const data = await res.json();
+    if (!data || (Array.isArray(data) && data.length === 0)) {
+      return { ok: false, error: `No stock found for "${name}".` };
+    }
+
+    const stock = normalizeStock(Array.isArray(data) ? data[0] : data);
+    return { ok: true, stock };
+  } catch (err) {
+    console.error("Stock search failed:", err);
+    return { ok: false, error: "Could not reach the stock API. Check your connection and try again." };
+  }
+}
+
+function StockRow({ stock }) {
+  const up = (stock.change ?? 0) >= 0;
+  return (
+    <li className="flex items-center justify-between gap-3 border-b-2 border-ink/10 py-2 last:border-b-0">
+      <div className="min-w-0">
+        <div className="truncate font-bold">{stock.name}</div>
+      </div>
+      <div className="shrink-0 text-right">
+        {stock.price !== null && (
+          <div className="font-mono-nb font-bold">₹{stock.price.toLocaleString("en-IN")}</div>
+        )}
+        {stock.change !== null && (
+          <div className={`font-mono-nb text-sm font-bold ${up ? "text-green-700" : "text-red-700"}`}>
+            {up ? "▲" : "▼"} {Math.abs(stock.change).toFixed(2)}%
+          </div>
+        )}
+      </div>
+    </li>
+  );
+}
+
+// Plain inline SVG bar chart — no chart library needed, so nothing new to
+// install. Plots percent change for gainers (green) + losers (red) side by side.
+function StockChart({ gainers, losers, searched }) {
+  const bars = [
+    ...gainers.slice(0, 5),
+    ...losers.slice(0, 5),
+    ...searched,
+  ].filter((s) => s.change !== null);
+  if (bars.length === 0) return null;
+
+  const width = 700;
+  const height = 220;
+  const padding = { top: 16, right: 12, bottom: 46, left: 12 };
+  const plotW = width - padding.left - padding.right;
+  const plotH = height - padding.top - padding.bottom;
+
+  const maxAbs = Math.max(1, ...bars.map((s) => Math.abs(s.change)));
+  const barW = plotW / bars.length;
+  const zeroY = padding.top + plotH / 2;
+  const scale = (plotH / 2) / maxAbs;
+
+  return (
+    <div className="nb-box bg-paper mb-4 overflow-x-auto p-4" style={{ boxShadow: "var(--shadow-sm)" }}>
+      <h3 className="mb-2 text-xl">% change — gainers vs losers</h3>
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        className="w-full"
+        style={{ minWidth: 480 }}
+        role="img"
+        aria-label="Bar chart of percent change for top gainers and losers"
+      >
+        {/* zero line */}
+        <line x1={padding.left} y1={zeroY} x2={width - padding.right} y2={zeroY} stroke="var(--ink)" strokeWidth="2" />
+
+        {bars.map((s, i) => {
+          const barHeight = Math.abs(s.change) * scale;
+          const x = padding.left + i * barW + barW * 0.15;
+          const w = barW * 0.7;
+          const up = s.change >= 0;
+          const y = up ? zeroY - barHeight : zeroY;
+          const label = s.name;
+
+          return (
+            <g key={`${label}-${i}`}>
+              <rect
+                x={x}
+                y={y}
+                width={w}
+                height={Math.max(barHeight, 1)}
+                fill={up ? "#15803d" : "#b91c1c"}
+                stroke="var(--ink)"
+                strokeWidth="2"
+              />
+              <text
+                x={x + w / 2}
+                y={zeroY + 16}
+                textAnchor="middle"
+                fontSize="10"
+                fontWeight="700"
+                fill="var(--ink)"
+                transform={`rotate(35, ${x + w / 2}, ${zeroY + 16})`}
+              >
+                {label.length > 10 ? `${label.slice(0, 10)}…` : label}
+              </text>
+              <text
+                x={x + w / 2}
+                y={up ? y - 4 : y + barHeight + 12}
+                textAnchor="middle"
+                fontSize="10"
+                fontWeight="700"
+                fill="var(--ink)"
+              >
+                {up ? "+" : ""}
+                {s.change.toFixed(1)}%
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+function StockBanner() {
+  const [state, setState] = useState({ loading: true, ok: false, gainers: [], losers: [], error: null });
+  const [query, setQuery] = useState("");
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState(null);
+  const [searched, setSearched] = useState([]); // stocks found via search, newest first
+
+  const load = useCallback(async () => {
+    setState((s) => ({ ...s, loading: true }));
+    const result = await fetchTrendingStocks();
+    if (result.ok) {
+      setState({ loading: false, ok: true, gainers: result.gainers, losers: result.losers, error: null });
+    } else {
+      setState((s) => ({ ...s, loading: false, ok: false, error: result.error }));
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function runSearch() {
+    const name = query.trim();
+    if (!name || searchLoading) return;
+    setSearchLoading(true);
+    setSearchError(null);
+
+    const result = await fetchStockByName(name);
+    if (result.ok) {
+      setSearched((prev) => [result.stock, ...prev.filter((s) => s.name !== result.stock.name)]);
+      setQuery("");
+    } else {
+      setSearchError(result.error);
+    }
+    setSearchLoading(false);
+  }
+
+  function removeSearched(name) {
+    setSearched((prev) => prev.filter((s) => s.name !== name));
+  }
+
+  return (
+    <section className="mx-auto max-w-5xl px-4 pt-10">
+      <div className="nb-box overflow-hidden" style={{ boxShadow: "var(--shadow)" }}>
+        <div className="bg-primary flex flex-wrap items-center justify-between gap-3 p-5" style={{ borderBottom: "var(--bw) solid var(--ink)" }}>
+          <div>
+            <span className="nb-tag">Live market</span>
+            <h2 className="mt-3 text-3xl sm:text-4xl">What's moving today</h2>
+            <p className="mt-2 max-w-3xl text-lg font-medium">
+              Trending NSE/BSE movers, pulled live from the Indian Stock Market API.
+            </p>
+          </div>
+          <button className="nb-btn nb-btn-ink shrink-0" onClick={load} disabled={state.loading}>
+            {state.loading ? "Refreshing..." : "Refresh"}
+          </button>
+        </div>
+
+        <div className="p-5">
+          {/* search any stock, not just what's in the trending list */}
+          <div className="nb-box bg-secondary mb-4 p-4">
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <input
+                className="nb-input"
+                value={query}
+                placeholder="Search any stock, e.g. Tata Motors"
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && runSearch()}
+                aria-label="Search for a stock"
+              />
+              <button
+                className="nb-btn nb-btn-primary sm:w-40"
+                onClick={runSearch}
+                disabled={searchLoading || !query.trim()}
+              >
+                {searchLoading ? "Searching..." : "Search"}
+              </button>
+            </div>
+            {searchError && (
+              <div className="nb-box bg-paper mt-3 p-3 font-bold">{searchError}</div>
+            )}
+            {searched.length > 0 && (
+              <ul className="mt-3">
+                {searched.map((s) => (
+                  <li key={s.name} className="flex items-center gap-2">
+                    <div className="flex-1">
+                      <StockRow stock={s} />
+                    </div>
+                    <button
+                      className="nb-btn !px-3 !py-1 text-sm"
+                      onClick={() => removeSearched(s.name)}
+                      aria-label={`Remove ${s.name}`}
+                    >
+                      Remove
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {state.loading && (
+            <div className="nb-box bg-accent p-5 text-center font-bold">
+              Fetching live prices<span className="nb-cursor">▌</span>
+            </div>
+          )}
+
+          {!state.loading && !state.ok && (
+            <>
+              <div className="nb-box bg-secondary p-4 font-bold">{state.error || "Couldn't load market data."}</div>
+              {searched.length > 0 && <StockChart gainers={[]} losers={[]} searched={searched} />}
+            </>
+          )}
+
+          {!state.loading && state.ok && (
+            <>
+              <StockChart gainers={state.gainers} losers={state.losers} searched={searched} />
+              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="nb-box bg-paper p-4" style={{ boxShadow: "var(--shadow-sm)" }}>
+                <h3 className="mb-2 text-xl">Top gainers</h3>
+                {state.gainers.length === 0 ? (
+                  <p className="font-medium opacity-70">No gainers data right now.</p>
+                ) : (
+                  <ul>
+                    {state.gainers.slice(0, 5).map((s, i) => (
+                      <StockRow key={`${s.ticker || s.name}-${i}`} stock={s} />
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              <div className="nb-box bg-paper p-4" style={{ boxShadow: "var(--shadow-sm)" }}>
+                <h3 className="mb-2 text-xl">Top losers</h3>
+                {state.losers.length === 0 ? (
+                  <p className="font-medium opacity-70">No losers data right now.</p>
+                ) : (
+                  <ul>
+                    {state.losers.slice(0, 5).map((s, i) => (
+                      <StockRow key={`${s.ticker || s.name}-${i}`} stock={s} />
+                    ))}
+                  </ul>
+                )}
+              </div>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 const COLORS = ["bg-primary", "bg-secondary", "bg-accent", "bg-paper"];
 const prettyKey = (k) => k.replace(/[_-]/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2");
 const isPrimitive = (v) => v === null || ["string", "number", "boolean"].includes(typeof v);
@@ -144,7 +489,7 @@ function Value({ data }) {
 }
 
 /* ============================================================
-   PAGE COMPONENTS
+   page part stuff
    ============================================================ */
 function Navbar() {
   const [open, setOpen] = useState(false);
@@ -177,7 +522,6 @@ function Navbar() {
             </button>
           </div>
         </div>
-        {/* mobile dropdown */}
         {open && <ul className="mt-3 flex flex-col gap-2 sm:hidden">{links}</ul>}
       </nav>
     </header>
@@ -241,7 +585,6 @@ function AIPanel() {
     setInput("");
     setLoading(true);
 
-    // finally guarantees the button never gets stuck on "Thinking..."
     try {
       const result = await askAI(buildPrompt(q));
       setResults((r) => [{ id: Date.now(), q, ...result }, ...r]);
@@ -306,8 +649,8 @@ function AIPanel() {
 function Features() {
   const items = [
     ["Fast", "bg-primary", "Ask once and get a structured answer."],
-    ["Free", "bg-secondary", "Groq's OSS models, no backend needed."],
-    ["Flexible", "bg-accent", "Edit the config block to fit any topic."],
+    ["Reliable", "bg-secondary", "Groq's OSS models, no backend needed."],
+    ["Safe", "bg-accent", "Ask the ai if something is fishy "],
   ];
   return (
     <section id="features" className="mx-auto max-w-5xl px-4 py-10">
@@ -324,43 +667,12 @@ function Features() {
   );
 }
 
-/* ============================================================
-   BANNER — paste any image link below to change the photo/text
-   ============================================================ */
-const BANNER = {
-  image: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSYPuIJnxF4XoyDRmKS6zYA5ZdwmFDgewtvoa_oqSfH6w&s=10",
-  alt: "Website banner",
-  title: "What is this website?",
-  text: "HACKBOX is an AI-powered tool that turns your questions into clear, structured answers in seconds. Type a request, hit Generate, and get ideas, plans and explanations as neat cards you can copy or delete. No sign-up, no waiting.",
-};
-
-function Banner() {
-  return (
-    <section className="mx-auto max-w-5xl px-4 pt-10">
-      <figure className="nb-box overflow-hidden" style={{ boxShadow: "var(--shadow)" }}>
-        <img
-          src={BANNER.image}
-          alt={BANNER.alt}
-          referrerPolicy="no-referrer"
-          className="block h-64 w-full object-cover sm:h-96"
-          style={{ borderBottom: "var(--bw) solid var(--ink)" }}
-        />
-        <figcaption className="bg-primary p-5">
-          <span className="nb-tag">About</span>
-          <h2 className="mt-3 text-3xl sm:text-4xl">{BANNER.title}</h2>
-          <p className="mt-2 max-w-3xl text-lg font-medium">{BANNER.text}</p>
-        </figcaption>
-      </figure>
-    </section>
-  );
-}
-
 export default function App() {
   return (
     <>
       <Navbar />
       <main>
-        <Banner />
+        <StockBanner />
         <Hero />
         <AIPanel />
         <Features />
