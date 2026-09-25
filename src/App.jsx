@@ -270,7 +270,6 @@ function StockChart({ gainers, losers, searched }) {
                 fontSize="10"
                 fontWeight="700"
                 fill="var(--ink)"
-                transform={`rotate(35, ${x + w / 2}, ${zeroY + 16})`}
               >
                 {label.length > 10 ? `${label.slice(0, 10)}…` : label}
               </text>
@@ -528,7 +527,7 @@ function Navbar() {
 function Hero() {
   return (
     <section className="mx-auto max-w-5xl px-4 pt-14 pb-6">
-      <span className="nb-tag">Built with Groq</span>
+      <span className="nb-tag">Explore</span>
       <h1 className="mt-4 max-w-3xl break-words text-4xl sm:text-7xl">{CONFIG.headline}</h1>
       <p className="mt-4 max-w-xl text-lg font-medium">{CONFIG.subline}</p>
       <div className="mt-6 flex flex-wrap gap-3">
@@ -540,7 +539,7 @@ function Hero() {
 }
 
 const TOP_IMAGE = {
-  src: "https://i.pinimg.com/1200x/55/ed/b0/55edb0165dfd55d82faa5a72162b42d0.jpg",
+  src: "https://media1.tenor.com/m/9ClrP6PgrCUAAAAd/mine-count.gif",
   alt: "Stock market chart",
 };
 
@@ -554,7 +553,7 @@ function TopImage() {
           referrerPolicy="no-referrer"
           className="block h-64 w-full object-cover sm:h-96"
           style={{ borderBottom: "var(--bw) solid var(--ink)" }}
-        />
+        />   
       </div>
     </section>
   );
