@@ -4,7 +4,7 @@ const CONFIG = {
   appName: "STONKS",
   headline: "Explore ways to understand stocks like never before",
   subline: ".",
-  placeholder: "Type here and hit Enter...",
+  placeholder: "Ask Questions Regarding Stocks...",
   buttonLabel: "ask AI",
   quickPrompts: [],
   nav: [
@@ -19,11 +19,13 @@ const CONFIG = {
   schemaHint: '{ "title": string, "brief": string, "points": string[] }',
 };
 
+
 const GROQ_API_KEY = "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";
 const GROQ_MODELS = ["openai/gpt-oss-20b", "openai/gpt-oss-120b"];
 
 const INDIAN_STOCK_API_KEY = "sk-live-DPNFi4VVOo0VEKFwOcFfUOTPjoWYLprQY7aA5KCP";
 const INDIAN_STOCK_API_BASE = "https://stock.indianapi.in";
+
 
 let cachedStockData = null;
 
@@ -86,6 +88,7 @@ function buildPrompt(userText) {
   return `${CONFIG.systemPrompt}${context}\n\n${format}\n\nRequest: ${userText}`;
 }
 
+
 function normalizeStock(raw) {
   const priceRaw =
     raw.price ??
@@ -132,7 +135,7 @@ async function fetchTrendingStocks() {
         const errBody = await res.json();
         detail = errBody?.message || errBody?.error || detail;
       } catch {
-    
+      
       }
       return { ok: false, error: detail };
     }
@@ -169,7 +172,7 @@ async function fetchStockByName(name) {
         const errBody = await res.json();
         detail = errBody?.message || errBody?.error || detail;
       } catch {
-   
+     
       }
       return { ok: false, error: detail };
     }
@@ -238,7 +241,7 @@ function StockChart({ gainers, losers, searched }) {
         role="img"
         aria-label="Bar chart of percent change for top gainers and losers"
       >
-
+        
         <line x1={padding.left} y1={zeroY} x2={width - padding.right} y2={zeroY} stroke="var(--ink)" strokeWidth="2" />
 
         {bars.map((s, i) => {
@@ -348,7 +351,7 @@ function StockBanner() {
         </div>
 
         <div className="p-5">
-         
+ 
           <div className="nb-box bg-secondary mb-4 p-4">
             <div className="flex flex-col gap-3 sm:flex-row">
               <input
@@ -472,7 +475,7 @@ function Value({ data }) {
     );
   }
 
-
+ 
   return (
     <div className="flex flex-col gap-3">
       {Object.entries(data).map(([k, v]) => (
@@ -485,9 +488,6 @@ function Value({ data }) {
   );
 }
 
-/* ============================================================
-   page part stuff
-   ============================================================ */
 function Navbar() {
   const [open, setOpen] = useState(false);
   const links = (
@@ -512,6 +512,7 @@ function Navbar() {
           <a href="#" className="min-w-0 truncate text-2xl font-bold tracking-tight">{CONFIG.appName}</a>
   
           <ul className="hidden items-center gap-2 sm:flex">{links}</ul>
+         
           <div className="sm:hidden">
             <button className="nb-btn nb-btn-ink" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
               {open ? "Close" : "Menu"}
@@ -539,7 +540,7 @@ function Hero() {
 }
 
 const TOP_IMAGE = {
-  src: "https://d1yhils6iwh5l5.cloudfront.net/charts/resized/57084/large/zaz_1.jpg",
+  src: "https://i.pinimg.com/1200x/55/ed/b0/55edb0165dfd55d82faa5a72162b42d0.jpg",
   alt: "Stock market chart",
 };
 
@@ -661,7 +662,7 @@ function AIPanel() {
 
   return (
     <section id="ai" className="mx-auto max-w-5xl px-4 py-10">
-     
+
       <div className="nb-box bg-secondary p-4">
         <div className="flex flex-col gap-3 sm:flex-row">
           <input
@@ -688,7 +689,7 @@ function AIPanel() {
         </div>
       </div>
 
-     
+   
       <div className="mt-8 flex flex-col gap-6" aria-live="polite">
         {loading && (
           <div className="nb-box bg-accent p-5 font-bold">
@@ -716,7 +717,7 @@ function Features() {
   const items = [
     ["Fast", "bg-primary", "Ask once and get a structured answer."],
     ["Free", "bg-secondary", "Groq's OSS models, no backend needed."],
-    ["Flexible", "bg-accent", "Edit the config block to fit any topic."],
+    ["Safe", "bg-accent", "Our AI collects no data"],
   ];
   return (
     <section id="features" className="mx-auto max-w-5xl px-4 py-10">
@@ -737,23 +738,22 @@ export default function App() {
   return (
     <div className="w-full max-w-full overflow-x-hidden">
       <Navbar />
-
       <main>
         <div id="home">
+          
           <StocksExplainer />
         </div>
-
-
+        <StockBanner />
+        <Hero /> 
         <AIPanel />
         <Portfolio />
         <Features />
-
         <TopImage />
       </main>
-
       <footer id="about" className="bg-ink mt-10 px-4 py-6 text-center font-mono-nb text-sm">
         STONKS · Calcutta Boys' School
       </footer>
     </div>
   );
 }
+
