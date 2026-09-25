@@ -1,29 +1,31 @@
 import { useState, useEffect, useCallback } from "react";
 
 const CONFIG = {
-  appName: "Stonks",
+  appName: "STONKS",
   headline: "Explore ways to understand stocks like never before",
   subline: ".",
   placeholder: "Type here and hit Enter...",
   buttonLabel: "ask AI",
   quickPrompts: [],
-  nav: ["Home", "AI Analysis", "Portfolio"],
+  nav: [
+    { label: "Home", href: "#home" },
+    { label: "AI Analysis", href: "#ai" },
+    { label: "Portfolio", href: "#portfolio" },
+  ],
 
-  systemPrompt: "You are a master stock analyst. Keep answers concise and useful. Give analytical insights in points if needed. Do not ask the user to take outside help",
+  systemPrompt: "You are a helpful stock assistant. Keep answers concise and useful.",
 
   jsonMode: true,
   schemaHint: '{ "title": string, "brief": string, "points": string[] }',
 };
 
-// ⚠️ Both keys below are hardcoded so this ships fast for the hackathon demo.
-// They are visible to anyone who opens dev tools / view-source on the deployed
-// site, so don't reuse these keys anywhere real after the event — rotate them
-// and move to a backend proxy or .env + server-side call for production.
 const GROQ_API_KEY = "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";
 const GROQ_MODELS = ["openai/gpt-oss-20b", "openai/gpt-oss-120b"];
 
 const INDIAN_STOCK_API_KEY = "sk-live-DPNFi4VVOo0VEKFwOcFfUOTPjoWYLprQY7aA5KCP";
 const INDIAN_STOCK_API_BASE = "https://stock.indianapi.in";
+
+let cachedStockData = null;
 
 async function askAI(promptText) {
   if (!GROQ_API_KEY) {
@@ -50,7 +52,7 @@ async function askAI(promptText) {
       if (!res.ok) {
         error = data?.error?.message || `Request failed (${res.status})`;
         console.error(`Groq error [${model}]:`, error);
-        continue; // try the next model
+        continue; 
       }
 
       const raw = data?.choices?.[0]?.message?.content?.trim();
@@ -67,7 +69,7 @@ async function askAI(promptText) {
         return { ok: true, data: cleaned };
       }
     } catch (err) {
-      console.error("AI call failed:", err); // network / CORS
+      console.error("AI call failed:", err); 
     }
   }
 
@@ -78,17 +80,12 @@ function buildPrompt(userText) {
   const format = CONFIG.jsonMode
     ? `Respond ONLY with valid JSON matching this shape, no extra text, no markdown fences: ${CONFIG.schemaHint}`
     : "Respond in plain text.";
-  return `${CONFIG.systemPrompt}\n\n${format}\n\nRequest: ${userText}`;
+  const context = cachedStockData
+    ? `\n\nCurrent Indian market data (JSON, may be partial — use it if relevant): ${JSON.stringify(cachedStockData)}`
+    : "";
+  return `${CONFIG.systemPrompt}${context}\n\n${format}\n\nRequest: ${userText}`;
 }
 
-/* ============================================================
-   Indian stock market data (indianapi.in)
-   ============================================================ */
-
-// The API's field names vary a bit between endpoints, so this normalizes
-// whatever shape comes back (trending list OR single /stock lookup) into
-// something the UI can always rely on. Ticker/scrip codes are intentionally
-// dropped from what's shown — only the plain company name is displayed.
 function normalizeStock(raw) {
   const priceRaw =
     raw.price ??
@@ -135,12 +132,13 @@ async function fetchTrendingStocks() {
         const errBody = await res.json();
         detail = errBody?.message || errBody?.error || detail;
       } catch {
-        /* ignore parse failure, keep default detail */
+    
       }
       return { ok: false, error: detail };
     }
 
     const data = await res.json();
+    cachedStockData = data;
     const gainersRaw = data?.trending_stocks?.top_gainers || data?.top_gainers || [];
     const losersRaw = data?.trending_stocks?.top_losers || data?.top_losers || [];
 
@@ -150,7 +148,7 @@ async function fetchTrendingStocks() {
       losers: losersRaw.map(normalizeStock),
     };
   } catch (err) {
-    console.error("Stock fetch failed:", err); // often CORS / network in-browser
+    console.error("Stock fetch failed:", err); 
     return { ok: false, error: "Could not reach the stock API. Check your connection and try again." };
   }
 }
@@ -171,7 +169,7 @@ async function fetchStockByName(name) {
         const errBody = await res.json();
         detail = errBody?.message || errBody?.error || detail;
       } catch {
-        /* ignore parse failure, keep default detail */
+   
       }
       return { ok: false, error: detail };
     }
@@ -192,11 +190,11 @@ async function fetchStockByName(name) {
 function StockRow({ stock }) {
   const up = (stock.change ?? 0) >= 0;
   return (
-    <li className="flex items-center justify-between gap-3 border-b-2 border-ink/10 py-2 last:border-b-0">
-      <div className="min-w-0">
+    <li className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b-2 border-ink/10 py-2 last:border-b-0">
+      <div className="min-w-0 flex-1 basis-40">
         <div className="truncate font-bold">{stock.name}</div>
       </div>
-      <div className="shrink-0 text-right">
+      <div className="shrink-0 whitespace-nowrap text-right">
         {stock.price !== null && (
           <div className="font-mono-nb font-bold">₹{stock.price.toLocaleString("en-IN")}</div>
         )}
@@ -210,8 +208,7 @@ function StockRow({ stock }) {
   );
 }
 
-// Plain inline SVG bar chart — no chart library needed, so nothing new to
-// install. Plots percent change for gainers (green) + losers (red) side by side.
+
 function StockChart({ gainers, losers, searched }) {
   const bars = [
     ...gainers.slice(0, 5),
@@ -241,7 +238,7 @@ function StockChart({ gainers, losers, searched }) {
         role="img"
         aria-label="Bar chart of percent change for top gainers and losers"
       >
-        {/* zero line */}
+
         <line x1={padding.left} y1={zeroY} x2={width - padding.right} y2={zeroY} stroke="var(--ink)" strokeWidth="2" />
 
         {bars.map((s, i) => {
@@ -298,7 +295,7 @@ function StockBanner() {
   const [query, setQuery] = useState("");
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState(null);
-  const [searched, setSearched] = useState([]); // stocks found via search, newest first
+  const [searched, setSearched] = useState([]); 
 
   const load = useCallback(async () => {
     setState((s) => ({ ...s, loading: true }));
@@ -351,7 +348,7 @@ function StockBanner() {
         </div>
 
         <div className="p-5">
-          {/* search any stock, not just what's in the trending list */}
+         
           <div className="nb-box bg-secondary mb-4 p-4">
             <div className="flex flex-col gap-3 sm:flex-row">
               <input
@@ -417,7 +414,7 @@ function StockBanner() {
                 ) : (
                   <ul>
                     {state.gainers.slice(0, 5).map((s, i) => (
-                      <StockRow key={`${s.ticker || s.name}-${i}`} stock={s} />
+                      <StockRow key={`${s.name}-${i}`} stock={s} />
                     ))}
                   </ul>
                 )}
@@ -430,7 +427,7 @@ function StockBanner() {
                 ) : (
                   <ul>
                     {state.losers.slice(0, 5).map((s, i) => (
-                      <StockRow key={`${s.ticker || s.name}-${i}`} stock={s} />
+                      <StockRow key={`${s.name}-${i}`} stock={s} />
                     ))}
                   </ul>
                 )}
@@ -475,7 +472,7 @@ function Value({ data }) {
     );
   }
 
-  // object
+
   return (
     <div className="flex flex-col gap-3">
       {Object.entries(data).map(([k, v]) => (
@@ -496,9 +493,9 @@ function Navbar() {
   const links = (
     <>
       {CONFIG.nav.map((item) => (
-        <li key={item}>
-          <a href={`#${item.toLowerCase()}`} className="nb-btn w-full sm:w-auto" onClick={() => setOpen(false)}>
-            {item}
+        <li key={item.label}>
+          <a href={item.href} className="nb-btn w-full sm:w-auto" onClick={() => setOpen(false)}>
+            {item.label}
           </a>
         </li>
       ))}
@@ -513,9 +510,8 @@ function Navbar() {
       <nav className="mx-auto max-w-5xl px-4 py-3">
         <div className="flex items-center justify-between gap-3">
           <a href="#" className="min-w-0 truncate text-2xl font-bold tracking-tight">{CONFIG.appName}</a>
-          {/* desktop links */}
+  
           <ul className="hidden items-center gap-2 sm:flex">{links}</ul>
-          {/* mobile menu button (wrapper hides it on desktop) */}
           <div className="sm:hidden">
             <button className="nb-btn nb-btn-ink" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
               {open ? "Close" : "Menu"}
@@ -530,13 +526,83 @@ function Navbar() {
 
 function Hero() {
   return (
-    <section id="home" className="mx-auto max-w-5xl px-4 pt-14 pb-6">
+    <section className="mx-auto max-w-5xl px-4 pt-14 pb-6">
       <span className="nb-tag">Built with Groq</span>
       <h1 className="mt-4 max-w-3xl break-words text-4xl sm:text-7xl">{CONFIG.headline}</h1>
       <p className="mt-4 max-w-xl text-lg font-medium">{CONFIG.subline}</p>
       <div className="mt-6 flex flex-wrap gap-3">
         <a href="#ai" className="nb-btn nb-btn-primary">Start now</a>
         <a href="#features" className="nb-btn nb-btn-secondary">See features</a>
+      </div>
+    </section>
+  );
+}
+
+const TOP_IMAGE = {
+  src: "https://d1yhils6iwh5l5.cloudfront.net/charts/resized/57084/large/zaz_1.jpg",
+  alt: "Stock market chart",
+};
+
+function TopImage() {
+  return (
+    <section className="mx-auto max-w-5xl px-4 pt-10">
+      <div className="nb-box overflow-hidden" style={{ boxShadow: "var(--shadow)" }}>
+        <img
+          src={TOP_IMAGE.src}
+          alt={TOP_IMAGE.alt}
+          referrerPolicy="no-referrer"
+          className="block h-64 w-full object-cover sm:h-96"
+          style={{ borderBottom: "var(--bw) solid var(--ink)" }}
+        />
+      </div>
+    </section>
+  );
+}
+
+function StocksExplainer() {
+  const topics = [
+    [
+      "What's a stock?",
+      "A stock is a small slice of ownership in a company. Buy one and you own a tiny piece of that business — its profits, its losses, all of it.",
+    ],
+    [
+      "NSE vs BSE",
+      "India's two big exchanges. The National Stock Exchange and Bombay Stock Exchange are where these ownership slices actually get bought and sold every trading day.",
+    ],
+    [
+      "Gainers & losers",
+      "\"Top gainers\" rose the most today, \"top losers\" fell the most. It's a snapshot of the day's trading, not a verdict on whether the company is good or bad.",
+    ],
+    [
+      "% change",
+      "How much a stock's price moved versus yesterday's closing price. +2% means it's up 2% since the last close; -2% means it's down.",
+    ],
+  ];
+
+  return (
+    <section className="mx-auto max-w-5xl px-4 py-10">
+      <span className="nb-tag">Learn</span>
+      <h2 className="mt-3 mb-6 text-4xl">Stocks, explained</h2>
+      <div className="grid gap-5 sm:grid-cols-2">
+        {topics.map(([t, d], i) => (
+          <div key={t} className={`nb-box p-5 ${COLORS[i % COLORS.length]}`}>
+            <h3 className="text-2xl">{t}</h3>
+            <p className="mt-2 font-medium">{d}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function Portfolio() {
+  return (
+    <section id="portfolio" className="mx-auto max-w-5xl px-4 py-10">
+      <span className="nb-tag">Coming soon</span>
+      <h2 className="mt-3 mb-4 text-4xl">Your portfolio</h2>
+      <div className="nb-box bg-paper p-6 text-center font-bold">
+        Holdings tracking isn't built yet — for now, use the search bar above the live market
+        data to look up any stock.
       </div>
     </section>
   );
@@ -577,7 +643,7 @@ function ResultCard({ item, onClear }) {
 function AIPanel() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState([]); // newest first
+  const [results, setResults] = useState([]); 
 
   async function run(text = input) {
     const q = text.trim();
@@ -595,7 +661,7 @@ function AIPanel() {
 
   return (
     <section id="ai" className="mx-auto max-w-5xl px-4 py-10">
-      {/* input bar */}
+     
       <div className="nb-box bg-secondary p-4">
         <div className="flex flex-col gap-3 sm:flex-row">
           <input
@@ -622,7 +688,7 @@ function AIPanel() {
         </div>
       </div>
 
-      {/* results */}
+     
       <div className="mt-8 flex flex-col gap-6" aria-live="polite">
         {loading && (
           <div className="nb-box bg-accent p-5 font-bold">
@@ -649,8 +715,8 @@ function AIPanel() {
 function Features() {
   const items = [
     ["Fast", "bg-primary", "Ask once and get a structured answer."],
-    ["Reliable", "bg-secondary", "Groq's OSS models, no backend needed."],
-    ["Safe", "bg-accent", "Ask the ai if something is fishy "],
+    ["Free", "bg-secondary", "Groq's OSS models, no backend needed."],
+    ["Flexible", "bg-accent", "Edit the config block to fit any topic."],
   ];
   return (
     <section id="features" className="mx-auto max-w-5xl px-4 py-10">
@@ -669,17 +735,25 @@ function Features() {
 
 export default function App() {
   return (
-    <>
+    <div className="w-full max-w-full overflow-x-hidden">
       <Navbar />
+
       <main>
-        <StockBanner />
-        <Hero />
+        <div id="home">
+          <StocksExplainer />
+        </div>
+
+
         <AIPanel />
+        <Portfolio />
         <Features />
+
+        <TopImage />
       </main>
+
       <footer id="about" className="bg-ink mt-10 px-4 py-6 text-center font-mono-nb text-sm">
-        {CONFIG.appName} · Calcutta Boys' School
+        STONKS · Calcutta Boys' School
       </footer>
-    </>
+    </div>
   );
 }
